@@ -1,0 +1,1 @@
+val generate_code : Parser.prog -> string -> unit

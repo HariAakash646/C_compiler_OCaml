@@ -1,0 +1,14 @@
+(library
+ (name lexer)
+ (modules lexer)
+ (libraries str))
+
+(library
+ (name parser)
+ (modules parser)
+ (libraries lexer))
+
+(library
+ (name code_generator)
+ (modules code_generator)
+ (libraries lexer parser))

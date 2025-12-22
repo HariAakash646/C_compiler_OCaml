@@ -1,0 +1,8 @@
+lib: [
+  "_build/install/default/lib/C_compiler/META"
+  "_build/install/default/lib/C_compiler/dune-package"
+  "_build/install/default/lib/C_compiler/opam"
+]
+bin: [
+  "_build/install/default/bin/C_compiler"
+]

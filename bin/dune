@@ -1,0 +1,4 @@
+(executable
+ (public_name C_compiler)
+ (name main)
+ (libraries lexer parser code_generator))
