@@ -1,7 +1,11 @@
 .globl main
 main:
-movq $10, %rax
-cmpq $0, %rax
-movq $0, %rax
-sete %al
+movq $12, %rax
+negq %rax
+pushq %rax
+movq $5, %rax
+movq %rax, %rcx
+popq %rax
+cqo
+idivq %rcx
 retq

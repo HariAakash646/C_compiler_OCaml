@@ -1,5 +1,11 @@
 type operator = Negation | BitwiseComplement | LogicalNegation;;
-type exp = Const of int | UnOp of operator * exp;;
+type additive_operator = Addition | Subtraction
+type multiplicative_operator = Multiplication | Division
+type fact = BracedExp of exp | UnOp of operator * fact | Const of int
+and multiplicative_tokens = Operator of multiplicative_operator | MultiplicativeTerm of fact
+and term = MultExp of multiplicative_tokens list
+and additive_tokens = Operator of additive_operator | AdditiveTerm of term
+and exp = AdditiveExp of additive_tokens list;;
 type statement = Return of exp;;
 type func_decl = Func of string * statement;;
 type prog = Prog of func_decl;;
