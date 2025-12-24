@@ -1,4 +1,4 @@
 (lang dune 3.20)
 (name C_compiler)
-(sections (lib .) (bin ../../bin))
-(files (lib (META dune-package opam)) (bin (C_compiler)))
+(sections (lib .) (bin ../../bin) (doc ../../doc/C_compiler))
+(files (lib (META dune-package opam)) (bin (C_compiler)) (doc (README.md)))

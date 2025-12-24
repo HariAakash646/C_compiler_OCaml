@@ -14,6 +14,14 @@ type token =
   | Addition
   | Multiplication
   | Division
+  | And
+  | Or
+  | Equal
+  | NotEqual
+  | Less
+  | LessEqual
+  | Greater
+  | GreaterEqual
 ;;
 
 let lex_file file_name =
@@ -51,6 +59,8 @@ let lex_file file_name =
               then (Negation, start+1)
             else if Str.string_partial_match (Str.regexp_string "~") line start
               then (BitwiseComplement, start+1)
+            else if Str.string_partial_match (Str.regexp_string "!=") line start
+              then (NotEqual, start+2)
             else if Str.string_partial_match (Str.regexp_string "!") line start
               then (LogicalNegation, start+1)
             else if Str.string_partial_match (Str.regexp_string "+") line start
@@ -59,6 +69,20 @@ let lex_file file_name =
               then (Multiplication, start+1)
             else if Str.string_partial_match (Str.regexp_string "/") line start
               then (Division, start+1)
+            else if Str.string_partial_match (Str.regexp_string "&&") line start
+              then (And, start+2)
+            else if Str.string_partial_match (Str.regexp_string "||") line start
+              then (Or, start+2)
+            else if Str.string_partial_match (Str.regexp_string "==") line start
+              then (Equal, start+2)
+            else if Str.string_partial_match (Str.regexp_string "<=") line start
+              then (LessEqual, start+2)
+            else if Str.string_partial_match (Str.regexp_string "<") line start
+              then (Less, start+1)
+            else if Str.string_partial_match (Str.regexp_string ">=") line start
+              then (GreaterEqual, start+2)
+            else if Str.string_partial_match (Str.regexp_string ">") line start
+              then (Greater, start+1)
             else (UnknownToken, start+1)
           in
           match token_value with

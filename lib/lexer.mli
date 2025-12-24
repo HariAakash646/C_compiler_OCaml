@@ -14,6 +14,14 @@ type token =
   | Addition
   | Multiplication
   | Division
+  | And
+  | Or
+  | Equal
+  | NotEqual
+  | Less
+  | LessEqual
+  | Greater
+  | GreaterEqual
 ;;
 
 val lex_file : string -> token list

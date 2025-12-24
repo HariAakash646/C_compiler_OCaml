@@ -16,6 +16,7 @@ let rec output_token_list token_list =
     | Lexer.Keyword keyw -> print_endline keyw
     | Lexer.Identifier ident -> print_endline ident
     | Lexer.IntegerLiteral constant -> print_endline (string_of_int constant)
+    | Lexer.NotEqual -> print_endline "!="
     | _ -> ())
     ;
     output_token_list suffix

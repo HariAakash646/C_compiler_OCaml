@@ -1,11 +1,24 @@
-type operator = Negation | BitwiseComplement | LogicalNegation;;
+type operator = Negation | BitwiseComplement | LogicalNegation
+type and_operator = And
+type or_operator = Or
+type comparative_operator = Less | LessEqual | Greater | GreaterEqual
+type equality_operator = Equal | NotEqual
 type additive_operator = Addition | Subtraction
 type multiplicative_operator = Multiplication | Division
 type fact = BracedExp of exp | UnOp of operator * fact | Const of int
 and multiplicative_tokens = Operator of multiplicative_operator | MultiplicativeTerm of fact
 and term = MultExp of multiplicative_tokens list
 and additive_tokens = Operator of additive_operator | AdditiveTerm of term
-and exp = AdditiveExp of additive_tokens list;;
+and additive_exp = AdditiveExp of additive_tokens list
+and comparative_tokens = Operator of comparative_operator | ComparativeTerm of additive_exp
+and comparative_exp = ComparativeExp of comparative_tokens list
+and equality_tokens = Operator of equality_operator | EqualityTerm of comparative_exp
+and equality_exp = EqualityExp of equality_tokens list
+and and_tokens = Operator of and_operator | AndTerm of equality_exp
+and and_exp = AndExp of and_tokens list
+and or_tokens = Operator of or_operator | OrTerm of and_exp
+and exp = OrExp of or_tokens list
+;;
 type statement = Return of exp;;
 type func_decl = Func of string * statement;;
 type prog = Prog of func_decl;;
@@ -45,19 +58,71 @@ and parse_term token_list =
       | MultExp(term_list) -> (MultExp(MultiplicativeTerm(fact) :: Operator(Division) :: term_list), token_list))
   | _ -> (MultExp([MultiplicativeTerm(fact)]), token_list)
 
-and parse_exp token_list =
+and parse_additive_exp token_list =
   let (term, token_list) = parse_term token_list in
   match token_list with
   | Lexer.Addition :: token_list ->
-    (let exp, token_list = parse_exp token_list in
+    (let exp, token_list = parse_additive_exp token_list in
     match exp with
     | AdditiveExp(exp_list) -> (AdditiveExp(AdditiveTerm(term) :: Operator(Addition) :: exp_list), token_list))
   | Lexer.Negation :: token_list ->
-    (let exp, token_list = parse_exp token_list in
+    (let exp, token_list = parse_additive_exp token_list in
     match exp with
     | AdditiveExp(exp_list) -> (AdditiveExp(AdditiveTerm(term) :: Operator(Subtraction) :: exp_list), token_list))
   | _ -> (AdditiveExp([AdditiveTerm(term)]), token_list)
-  ;;
+
+and parse_comparative_exp token_list =
+  let (additive_exp, token_list) = parse_additive_exp token_list in  
+  match token_list with
+  | Lexer.Less :: token_list ->
+    (let exp, token_list = parse_comparative_exp token_list in
+    match exp with
+    | ComparativeExp(exp_list) -> (ComparativeExp(ComparativeTerm(additive_exp) :: Operator(Less) :: exp_list), token_list))
+  | Lexer.LessEqual :: token_list ->
+    (let exp, token_list = parse_comparative_exp token_list in
+    match exp with
+    | ComparativeExp(exp_list) -> (ComparativeExp(ComparativeTerm(additive_exp) :: Operator(LessEqual) :: exp_list), token_list))
+  | Lexer.Greater :: token_list ->
+    (let exp, token_list = parse_comparative_exp token_list in
+    match exp with
+    | ComparativeExp(exp_list) -> (ComparativeExp(ComparativeTerm(additive_exp) :: Operator(Greater) :: exp_list), token_list))
+  | Lexer.GreaterEqual :: token_list ->
+    (let exp, token_list = parse_comparative_exp token_list in
+    match exp with
+    | ComparativeExp(exp_list) -> (ComparativeExp(ComparativeTerm(additive_exp) :: Operator(GreaterEqual) :: exp_list), token_list))
+  | _ -> (ComparativeExp([ComparativeTerm(additive_exp)]), token_list)
+
+and parse_equality_exp token_list =
+  let (comparative_exp, token_list) = parse_comparative_exp token_list in  
+  match token_list with
+  | Lexer.Equal :: token_list ->
+    (let exp, token_list = parse_equality_exp token_list in
+    match exp with
+    | EqualityExp(exp_list) -> (EqualityExp(EqualityTerm(comparative_exp) :: Operator(Equal) :: exp_list), token_list))
+  | Lexer.NotEqual :: token_list ->
+    (let exp, token_list = parse_equality_exp token_list in
+    match exp with
+    | EqualityExp(exp_list) -> (EqualityExp(EqualityTerm(comparative_exp) :: Operator(NotEqual) :: exp_list), token_list))
+  | _ -> (EqualityExp([EqualityTerm(comparative_exp)]), token_list)
+
+and parse_and_exp token_list =
+  let (equality_exp, token_list) = parse_equality_exp token_list in  
+  match token_list with
+  | Lexer.And :: token_list ->
+    (let exp, token_list = parse_and_exp token_list in
+    match exp with
+    | AndExp(exp_list) -> (AndExp(AndTerm(equality_exp) :: Operator(And) :: exp_list), token_list))
+  | _ -> (AndExp([AndTerm(equality_exp)]), token_list)
+
+and parse_exp token_list =
+  let (and_exp, token_list) = parse_and_exp token_list in  
+  match token_list with
+  | Lexer.Or :: token_list ->
+    (let exp, token_list = parse_exp token_list in
+    match exp with
+    | OrExp(exp_list) -> (OrExp(OrTerm(and_exp) :: Operator(Or) :: exp_list), token_list))
+  | _ -> (OrExp([OrTerm(and_exp)]), token_list)
+;;
 
 let parse_statement token_list =
   match token_list with

@@ -6,3 +6,6 @@ lib: [
 bin: [
   "_build/install/default/bin/C_compiler"
 ]
+doc: [
+  "_build/install/default/doc/C_compiler/README.md"
+]
