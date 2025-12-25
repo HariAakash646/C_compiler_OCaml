@@ -18,10 +18,13 @@ and and_tokens = Operator of and_operator | AndTerm of equality_exp
 and and_exp = AndExp of and_tokens list
 and or_tokens = Operator of or_operator | OrTerm of and_exp
 and or_exp = OrExp of or_tokens list
-and exp = LogicalOr of or_exp | Assign of string * exp 
+and conditional_exp = CondExp of or_exp * ((exp * conditional_exp) option)
+and exp = CondExp of conditional_exp | Assign of string * exp
 ;;
-type statement = Return of exp | Declare of string * exp option | Exp of exp;;
-type func_decl = Func of string * statement list;;
+type statement = Return of exp | Exp of exp | If of exp * statement * statement option;;
+type declaration = Declare of string * exp option;;
+type block_item = Statement of statement | Declaration of declaration;;
+type func_decl = Func of string * block_item list;;
 type prog = Prog of func_decl;;
 
 
@@ -126,17 +129,29 @@ and parse_or_exp token_list =
     | OrExp(exp_list) -> (OrExp(OrTerm(and_exp) :: Operator(Or) :: exp_list), token_list))
   | _ -> (OrExp([OrTerm(and_exp)]), token_list)
 
+and parse_conditional_exp token_list =
+  let or_exp, token_list = parse_or_exp token_list in
+  match token_list with
+  | Lexer.Question :: token_list ->
+    (let exp, token_list = parse_exp token_list in
+    match token_list with
+    | Lexer.Colon :: token_list ->
+      (let cond_exp, token_list = parse_conditional_exp token_list in
+      (CondExp(or_exp, Some (exp, cond_exp)), token_list))
+    | _ -> failwith "Invalid Syntax: Missing ':' in conditional expression")
+  | _ -> (CondExp(or_exp, None), token_list)
+
 and parse_exp token_list =
   match token_list with
   | Lexer.Identifier name :: Lexer.Assignment :: token_list ->
     (let (exp, token_list) = parse_exp token_list in
     (Assign(name, exp), token_list))
   | _ -> 
-    (let exp, token_list = parse_or_exp token_list in
-    (LogicalOr(exp), token_list))
+    (let exp, token_list = parse_conditional_exp token_list in
+    (CondExp(exp), token_list))
 ;;
 
-let parse_statement token_list =
+let rec parse_statement token_list =
   match token_list with
   | [] -> failwith "Invalid Syntax: Statement is incomplete"
   | Lexer.Keyword "return" :: token_list ->
@@ -149,18 +164,20 @@ let parse_statement token_list =
         | Lexer.Semicolon -> (Return expression, token_list)
         | _ -> failwith "Invalid Syntax: Return statement doesn't end with ';'")
       ))
-  | Lexer.Keyword "int" :: token_list ->
+  | Lexer.Keyword "if" :: token_list ->
     (match token_list with
-    | Lexer.Identifier name :: token_list ->
-      (match token_list with
-      | Lexer.Semicolon :: token_list -> (Declare(name, None), token_list)
-      | Lexer.Assignment :: token_list ->
-        (let (exp, token_list) = parse_exp token_list in
+    | Lexer.OpenParanthesis :: token_list -> 
+      (let expression, token_list = parse_exp token_list in
+      match token_list with
+      | Lexer.CloseParanthesis :: token_list ->
+        (let statement, token_list = parse_statement token_list in
         match token_list with
-        | Lexer.Semicolon :: token_list -> (Declare(name, Some exp), token_list)
-        | _ -> failwith "Invalid Syntax: Declare statement doesn't end with ';'")
-      | _ -> failwith "Invalid Syntax: Declare statement doesn't end with ';'")
-    | _ -> failwith "Invalid Syntax: Declare statement is incomplete")
+        | Lexer.Keyword "else" :: token_list -> 
+          (let else_statement, token_list = parse_statement token_list in
+          (If(expression, statement, Some else_statement), token_list))
+        | _ -> (If(expression, statement, None), token_list))
+      | _ -> failwith "Invalid Syntax: If statement condition expression missing ')'")
+    | _ -> failwith "Invalid Syntax: If statement condition expression missing '('")
   | _ -> 
     (let (exp, token_list) = parse_exp token_list in
     match token_list with
@@ -168,13 +185,35 @@ let parse_statement token_list =
     | _ -> failwith "Invalid Syntax: Statement doesn't end with ';'"
     )
 
-let rec parse_statement_list token_list =
+let parse_declaration token_list =
+  match token_list with
+  | Lexer.Identifier name :: token_list ->
+    (match token_list with
+    | Lexer.Semicolon :: token_list -> (Declare(name, None), token_list)
+    | Lexer.Assignment :: token_list ->
+      (let (exp, token_list) = parse_exp token_list in
+      match token_list with
+      | Lexer.Semicolon :: token_list -> (Declare(name, Some exp), token_list)
+      | _ -> failwith "Invalid Syntax: Declare statement doesn't end with ';'")
+    | _ -> failwith "Invalid Syntax: Declare statement doesn't end with ';'")
+  | _ -> failwith "Invalid Syntax: Declare statement is incomplete"
+
+let parse_block_item token_list =
+  match token_list with
+  | Lexer.Keyword "int" :: token_list -> 
+    (let decl, token_list = parse_declaration token_list in
+    (Declaration(decl), token_list))
+  | _ -> 
+    (let statement, token_list = parse_statement token_list in
+    (Statement(statement), token_list))
+
+let rec parse_block_item_list token_list =
   match token_list with
   | Lexer.CloseBrace :: _ -> ([], token_list)
   | _ -> 
-    (let (statement, token_list) = parse_statement token_list in
-    let (statement_list, token_list) = parse_statement_list token_list in
-    ([statement] @ statement_list, token_list))
+    (let (block_item, token_list) = parse_block_item token_list in
+    let (block_item_list, token_list) = parse_block_item_list token_list in
+    ([block_item] @ block_item_list, token_list))
 
 let parse_func token_list =
   match token_list with
@@ -202,12 +241,12 @@ let parse_func token_list =
                   | token :: token_list ->
                     (match token with
                     | Lexer.OpenBrace ->
-                      (let statement_list, token_list = parse_statement_list token_list in
+                      (let block_item_list, token_list = parse_block_item_list token_list in
                       match token_list with
                       | [] -> failwith "Invalid Syntax: Function is incomplete"
                       | token :: token_list ->
                         (match token with
-                        | Lexer.CloseBrace -> (Func (func_name, statement_list), token_list)
+                        | Lexer.CloseBrace -> (Func (func_name, block_item_list), token_list)
                         | _ -> failwith "Invalid syntax: Invalid function definition"))
                     | _ ->  failwith "Invalid Syntax: Invalid function definition"))
                 | _ -> failwith "Invalid Syntax: Invalid function definition"))

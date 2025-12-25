@@ -23,6 +23,8 @@ type token =
   | Greater
   | GreaterEqual
   | Assignment
+  | Colon
+  | Question
 ;;
 
 let lex_file file_name =
@@ -48,7 +50,7 @@ let lex_file file_name =
             else if Str.string_partial_match (Str.regexp {|[A-Za-z][A-Za-z0-9_]*|}) line start
               then
                 let s = Str.matched_string line in
-                if s = "int" || s = "return" then
+                if s = "int" || s = "return" || s = "if" || s = "else" then
                   (Keyword s, start + String.length s)
                 else
                   (Identifier s, start + String.length s)
@@ -86,6 +88,10 @@ let lex_file file_name =
               then (Greater, start+1)
             else if Str.string_partial_match (Str.regexp_string "=") line start
               then (Assignment, start+1)
+            else if Str.string_partial_match (Str.regexp_string ":") line start
+              then (Colon, start+1)
+            else if Str.string_partial_match (Str.regexp_string "?") line start
+              then (Question, start+1)
             else (UnknownToken, start+1)
           in
           match token_value with

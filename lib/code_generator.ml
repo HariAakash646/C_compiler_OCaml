@@ -184,23 +184,60 @@ and generate_or_expression_code (expression : Parser.or_exp) out_channel var_map
       generate_or_expression_code (Parser.OrExp(term_list)) out_channel var_map)
     | _ -> gracefully_fail "Unexpected run in generate_expression_code. This should never happen." out_channel)
 
+and generate_conditional_code (expression : Parser.conditional_exp) out_channel var_map =
+  match expression with
+  | CondExp(or_exp, suffix) ->
+    (generate_or_expression_code or_exp out_channel var_map;
+    match suffix with
+    | None -> ()
+    | Some (exp, cond_exp) ->
+      (let clause_val = string_of_int !(get_clause_counter ()) in
+      let end_val = string_of_int !(get_clause_counter ()) in
+      writeline out_channel "cmpq $0, %rax";
+      writeline out_channel ("je _clause" ^ clause_val);
+      generate_expression_code exp out_channel var_map;
+      writeline out_channel ("jmp _end" ^ end_val);
+      writeline out_channel ("_clause" ^ clause_val ^ ":");
+      generate_conditional_code cond_exp out_channel var_map;
+      writeline out_channel ("_end" ^ end_val ^ ":")))
+
 and generate_expression_code (expression : Parser.exp) out_channel var_map =
   match expression with
-  | Parser.LogicalOr(exp) -> generate_or_expression_code exp out_channel var_map
+  | Parser.CondExp(exp) -> generate_conditional_code exp out_channel var_map
   | Parser.Assign(name, exp) ->
     (generate_expression_code exp out_channel var_map;
     match StringMap.find_opt name var_map with
     | None -> gracefully_fail ("Unknown variable named " ^ name) out_channel
     | Some var_offset -> writeline out_channel ("movq %rax, " ^ (string_of_int var_offset) ^ "(%rbp)"))
-
 ;;
   
-let generate_statement_code (statement : Parser.statement) out_channel var_map stack_index =
+let rec generate_statement_code (statement : Parser.statement) out_channel var_map stack_index =
   match statement with
   | Return(exp) 
   | Exp(exp) -> 
     (generate_expression_code exp out_channel var_map;
     (var_map, stack_index))
+  | If(exp, statement, opt_statement) ->
+    (generate_expression_code exp out_channel var_map;
+    let clause_val = string_of_int !(get_clause_counter ()) in
+    let end_val = string_of_int !(get_clause_counter ()) in
+    writeline out_channel "cmpq $0, %rax";
+    writeline out_channel ("je _clause" ^ clause_val);
+    let var_map, stack_index = generate_statement_code statement out_channel var_map stack_index in
+    writeline out_channel ("jmp _end" ^ end_val);
+    writeline out_channel ("_clause" ^ clause_val ^ ":");
+    (match opt_statement with
+    | None -> 
+      (writeline out_channel ("_end" ^ end_val ^ ":");
+      (var_map, stack_index))
+    | Some statement -> 
+      (let var_map, stack_index = generate_statement_code statement out_channel var_map stack_index in
+      writeline out_channel ("_end" ^ end_val ^ ":");
+      (var_map, stack_index)));
+    )
+
+let generate_declaration_code (declaration : Parser.declaration) out_channel var_map stack_index =
+  match declaration with
   | Declare(name, exp) ->
     (match StringMap.find_opt name var_map with
     | Some _ -> gracefully_fail ("Cannot reinitialize variable " ^ name) out_channel
@@ -214,18 +251,23 @@ let generate_statement_code (statement : Parser.statement) out_channel var_map s
       (var_map, stack_index)
       ))
 
-let rec generate_statement_list_code (statement_list : Parser.statement list) out_channel var_map stack_index =
-  (match statement_list with
+let generate_block_item_code (block_item : Parser.block_item) out_channel var_map stack_index = 
+  match block_item with
+  | Statement(statement) -> generate_statement_code statement out_channel var_map stack_index
+  | Declaration(declaration) -> generate_declaration_code declaration out_channel var_map stack_index
+
+let rec generate_block_item_list_code (block_item_list : Parser.block_item list) out_channel var_map stack_index =
+  (match block_item_list with
   | _ :: [] -> writeline out_channel "movq $0, %rax"
   | _ -> ());
-  match statement_list with
+  match block_item_list with
   | [] -> (var_map, stack_index)
-  | statement :: statement_list ->
-    (let (var_map, stack_index) = generate_statement_code statement out_channel var_map stack_index in
-    generate_statement_list_code statement_list out_channel var_map stack_index)
+  | block_item :: block_item_list ->
+    (let (var_map, stack_index) = generate_block_item_code block_item out_channel var_map stack_index in
+    generate_block_item_list_code block_item_list out_channel var_map stack_index)
 
 let generate_function_code (func : Parser.func_decl) out_channel =
-  let name, statement_list = Parser.name_and_body_of_func func in
+  let name, block_item_list = Parser.name_and_body_of_func func in
   writeline out_channel (".globl " ^ name);
   writeline out_channel (name ^ ":");
   writeline out_channel "pushq %rbp";
@@ -233,7 +275,7 @@ let generate_function_code (func : Parser.func_decl) out_channel =
   let var_map = StringMap.empty in
   let stack_index = -8 in
   writeline out_channel "movq $0, %rax";
-  let _ = generate_statement_list_code statement_list out_channel var_map stack_index in
+  let _ = generate_block_item_list_code block_item_list out_channel var_map stack_index in
   writeline out_channel "movq %rbp, %rsp";
   writeline out_channel "popq %rbp";
   writeline out_channel "retq"

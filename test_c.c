@@ -1,3 +1,4 @@
 int main() {
-    return 1 || 0 && 2;
+    if(0) return 3;
+    else return 2;
 }

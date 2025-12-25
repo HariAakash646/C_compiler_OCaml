@@ -23,6 +23,8 @@ type token =
   | Greater
   | GreaterEqual
   | Assignment
+  | Colon
+  | Question
 ;;
 
 val lex_file : string -> token list

@@ -18,12 +18,15 @@ and and_tokens = Operator of and_operator | AndTerm of equality_exp
 and and_exp = AndExp of and_tokens list
 and or_tokens = Operator of or_operator | OrTerm of and_exp
 and or_exp = OrExp of or_tokens list
-and exp = LogicalOr of or_exp | Assign of string * exp 
+and conditional_exp = CondExp of or_exp * ((exp * conditional_exp) option)
+and exp = CondExp of conditional_exp | Assign of string * exp
 ;;
-type statement = Return of exp | Declare of string * exp option | Exp of exp;;
-type func_decl = Func of string * statement list;;
+type statement = Return of exp | Exp of exp | If of exp * statement * statement option;;
+type declaration = Declare of string * exp option;;
+type block_item = Statement of statement | Declaration of declaration;;
+type func_decl = Func of string * block_item list;;
 type prog = Prog of func_decl;;
 
 val parse_prog : Lexer.token list -> prog
 val func_of_prog : prog -> func_decl
-val name_and_body_of_func : func_decl -> string * statement list
+val name_and_body_of_func : func_decl -> string * block_item list
