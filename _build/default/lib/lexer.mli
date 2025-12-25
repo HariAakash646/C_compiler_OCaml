@@ -22,6 +22,7 @@ type token =
   | LessEqual
   | Greater
   | GreaterEqual
+  | Assignment
 ;;
 
 val lex_file : string -> token list

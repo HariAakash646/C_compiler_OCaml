@@ -14,7 +14,7 @@ let rec output_token_list token_list =
     | Lexer.CloseParanthesis -> print_endline ")"
     | Lexer.Semicolon -> print_endline ";"
     | Lexer.Keyword keyw -> print_endline keyw
-    | Lexer.Identifier ident -> print_endline ident
+    | Lexer.Identifier ident -> print_endline ("ident" ^ ident)
     | Lexer.IntegerLiteral constant -> print_endline (string_of_int constant)
     | Lexer.NotEqual -> print_endline "!="
     | _ -> ())

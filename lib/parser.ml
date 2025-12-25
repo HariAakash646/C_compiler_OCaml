@@ -5,7 +5,7 @@ type comparative_operator = Less | LessEqual | Greater | GreaterEqual
 type equality_operator = Equal | NotEqual
 type additive_operator = Addition | Subtraction
 type multiplicative_operator = Multiplication | Division
-type fact = BracedExp of exp | UnOp of operator * fact | Const of int
+type fact = BracedExp of exp | UnOp of operator * fact | Const of int | Var of string
 and multiplicative_tokens = Operator of multiplicative_operator | MultiplicativeTerm of fact
 and term = MultExp of multiplicative_tokens list
 and additive_tokens = Operator of additive_operator | AdditiveTerm of term
@@ -17,11 +17,13 @@ and equality_exp = EqualityExp of equality_tokens list
 and and_tokens = Operator of and_operator | AndTerm of equality_exp
 and and_exp = AndExp of and_tokens list
 and or_tokens = Operator of or_operator | OrTerm of and_exp
-and exp = OrExp of or_tokens list
+and or_exp = OrExp of or_tokens list
+and exp = LogicalOr of or_exp | Assign of string * exp 
 ;;
-type statement = Return of exp;;
-type func_decl = Func of string * statement;;
+type statement = Return of exp | Declare of string * exp option | Exp of exp;;
+type func_decl = Func of string * statement list;;
 type prog = Prog of func_decl;;
+
 
 let rec parse_factor token_list =
   match token_list with
@@ -29,6 +31,7 @@ let rec parse_factor token_list =
   | token :: token_list ->
     (match token with 
     | Lexer.IntegerLiteral number -> (Const number, token_list)
+    | Lexer.Identifier name -> (Var name, token_list)
     | Lexer.Negation ->
       (let exp, token_list = parse_factor token_list in
       (UnOp(Negation, exp), token_list))
@@ -114,31 +117,64 @@ and parse_and_exp token_list =
     | AndExp(exp_list) -> (AndExp(AndTerm(equality_exp) :: Operator(And) :: exp_list), token_list))
   | _ -> (AndExp([AndTerm(equality_exp)]), token_list)
 
-and parse_exp token_list =
+and parse_or_exp token_list =
   let (and_exp, token_list) = parse_and_exp token_list in  
   match token_list with
   | Lexer.Or :: token_list ->
-    (let exp, token_list = parse_exp token_list in
+    (let exp, token_list = parse_or_exp token_list in
     match exp with
     | OrExp(exp_list) -> (OrExp(OrTerm(and_exp) :: Operator(Or) :: exp_list), token_list))
   | _ -> (OrExp([OrTerm(and_exp)]), token_list)
+
+and parse_exp token_list =
+  match token_list with
+  | Lexer.Identifier name :: Lexer.Assignment :: token_list ->
+    (let (exp, token_list) = parse_exp token_list in
+    (Assign(name, exp), token_list))
+  | _ -> 
+    (let exp, token_list = parse_or_exp token_list in
+    (LogicalOr(exp), token_list))
 ;;
 
 let parse_statement token_list =
   match token_list with
   | [] -> failwith "Invalid Syntax: Statement is incomplete"
-  | token :: token_list ->
-    (match token with
-    | Lexer.Keyword "return" ->
+  | Lexer.Keyword "return" :: token_list ->
+    (
       (let expression, token_list = parse_exp token_list in
       match token_list with
-      | [] -> failwith "Invalid Syntax: Statement is incomplete"
+      | [] -> failwith "Invalid Syntax: Return statement is incomplete"
       | token :: token_list ->
         (match token with
         | Lexer.Semicolon -> (Return expression, token_list)
-        | _ -> failwith "Invalid Syntax: Statement doesn't end with ';'")
-      )
-    | _ -> failwith "Invalid Syntax: Statement doesn't start with return keyword")
+        | _ -> failwith "Invalid Syntax: Return statement doesn't end with ';'")
+      ))
+  | Lexer.Keyword "int" :: token_list ->
+    (match token_list with
+    | Lexer.Identifier name :: token_list ->
+      (match token_list with
+      | Lexer.Semicolon :: token_list -> (Declare(name, None), token_list)
+      | Lexer.Assignment :: token_list ->
+        (let (exp, token_list) = parse_exp token_list in
+        match token_list with
+        | Lexer.Semicolon :: token_list -> (Declare(name, Some exp), token_list)
+        | _ -> failwith "Invalid Syntax: Declare statement doesn't end with ';'")
+      | _ -> failwith "Invalid Syntax: Declare statement doesn't end with ';'")
+    | _ -> failwith "Invalid Syntax: Declare statement is incomplete")
+  | _ -> 
+    (let (exp, token_list) = parse_exp token_list in
+    match token_list with
+    | Lexer.Semicolon :: token_list -> (Exp(exp), token_list)
+    | _ -> failwith "Invalid Syntax: Statement doesn't end with ';'"
+    )
+
+let rec parse_statement_list token_list =
+  match token_list with
+  | Lexer.CloseBrace :: _ -> ([], token_list)
+  | _ -> 
+    (let (statement, token_list) = parse_statement token_list in
+    let (statement_list, token_list) = parse_statement_list token_list in
+    ([statement] @ statement_list, token_list))
 
 let parse_func token_list =
   match token_list with
@@ -166,18 +202,20 @@ let parse_func token_list =
                   | token :: token_list ->
                     (match token with
                     | Lexer.OpenBrace ->
-                      (let statement, token_list = parse_statement token_list in
+                      (let statement_list, token_list = parse_statement_list token_list in
                       match token_list with
                       | [] -> failwith "Invalid Syntax: Function is incomplete"
                       | token :: token_list ->
                         (match token with
-                        | Lexer.CloseBrace -> (Func (func_name, statement), token_list)
+                        | Lexer.CloseBrace -> (Func (func_name, statement_list), token_list)
                         | _ -> failwith "Invalid syntax: Invalid function definition"))
                     | _ ->  failwith "Invalid Syntax: Invalid function definition"))
                 | _ -> failwith "Invalid Syntax: Invalid function definition"))
             | _ -> failwith "Invalid Syntax: Invalid function definition"))
         | _ -> failwith "Invalid Syntax: Invalid main function name"))
     | _ -> failwith "Invalid Syntax: Function return datatype incorrect")
+
+
 
 let parse_prog token_list =
   let function_node, token_list = parse_func token_list in
@@ -191,8 +229,4 @@ let func_of_prog prog =
 
 let name_and_body_of_func func_decl =
   match func_decl with
-  | Func (name, statement) -> (name, statement)
-
-let expression_of_statemnt statement =
-  match statement with
-  | Return exp -> exp
+  | Func (name, statement_list) -> (name, statement_list)

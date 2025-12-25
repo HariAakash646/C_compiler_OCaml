@@ -22,6 +22,7 @@ type token =
   | LessEqual
   | Greater
   | GreaterEqual
+  | Assignment
 ;;
 
 let lex_file file_name =
@@ -83,6 +84,8 @@ let lex_file file_name =
               then (GreaterEqual, start+2)
             else if Str.string_partial_match (Str.regexp_string ">") line start
               then (Greater, start+1)
+            else if Str.string_partial_match (Str.regexp_string "=") line start
+              then (Assignment, start+1)
             else (UnknownToken, start+1)
           in
           match token_value with
